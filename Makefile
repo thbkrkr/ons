@@ -6,7 +6,7 @@ build:
 		-v $$(pwd):/dnsovh \
 		-e GOBIN=/go/bin/ \
 		-e CGO_ENABLED=0 \
-		-e GOPATH=/dnsovh:/dnsovh/Godeps/workspace \
+		-e GOPATH=/dnsovh:/dnsovh/vendor \
 		-w /dnsovh \
 		golang:1.6.0 \
 		go build

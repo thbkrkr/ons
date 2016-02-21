@@ -1,0 +1,6 @@
+[submodule "vendor/github.com/yadutaf/go-ovh"]
+	path = vendor/github.com/yadutaf/go-ovh
+	url = https://github.com/yadutaf/go-ovh
+[submodule "vendor/gopkg.in/ini.v1"]
+	path = vendor/gopkg.in/ini.v1
+	url = https://gopkg.in/ini.v1

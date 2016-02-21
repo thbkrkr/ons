@@ -142,26 +142,4 @@ func main() {
 	}
 
 	exit(fmt.Sprintf("Invalid Command: %s\n", *Command))
-
-	/*	record, err := ovhClient.GetRecord("blurb.space", 1323781110)
-		if err != nil {
-			exit(fmt.Sprintf("Error: %v\n", err))
-		}
-		b, err := json.Marshal(record)
-		fmt.Printf("%v", string(b))
-	*/
-
-	//subDomain := "ovh"
-
-	//_, err = ovhClient.addRecord(zone, "pof", "149.202.169.125")
-
-	//records, err := ovhClient.listFullARecords(zone)
-	//recordID, err := ovhClient.getRecordIDBySubDomain(zone, subDomain)
-	//record, err := ovhClient.getRecord(zone, *recordID)
-	//_, err = ovhClient.deleteRecordByID(*Zone, 1354103752)
-
-	/*if err != nil {
-		exit(fmt.Sprintf("Error: %v\n", err))
-	}
-	*/
 }
