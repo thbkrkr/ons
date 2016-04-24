@@ -1,4 +1,4 @@
-package dns
+package main
 
 import (
 	"encoding/json"
@@ -6,19 +6,22 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ovh/go-ovh/ovh"
 	"github.com/thbkrkr/go-ovh-dns/dns"
-	"github.com/yadutaf/go-ovh"
 )
 
 var (
-	ConfigFilename = flag.String("f", "/config.json", "OVH API config file")
-	Command        = flag.String("c", "plan", "Command: plan, apply, show, delete")
-	Zone           = flag.String("z", "", "DNS zone to manage")
-	ID             = flag.Int64("id", 0, "DNS record id (to delete)")
+	ConfigFile = flag.String("f", "/ops/dns/config.json", "OVH API config file")
+	StateFile  = flag.String("s", "/ops/dns/dns.state", "OVH API config file")
+	Command    = flag.String("c", "plan", "Command: plan, apply, show, delete")
+
+	ID = flag.Int64("id", 0, "DNS record id (to delete)")
+
+	Zone = flag.String("z", "", "DNS zone to manage")
 )
 
 func loadConfig() (c *dns.Config, err error) {
-	configFile, err := os.Open(*ConfigFilename)
+	configFile, err := os.Open(*ConfigFile)
 	defer configFile.Close()
 	if err != nil {
 		return nil, err
@@ -41,7 +44,7 @@ func exit(msg string) {
 func config() *dns.Config {
 	config, err := loadConfig()
 	if err != nil {
-		exit(fmt.Sprintf("Cannot parse config file `%s`:\n %v\n", *ConfigFilename, err))
+		exit(fmt.Sprintf("Cannot parse config file `%s`:\n %v\n", *ConfigFile, err))
 	}
 
 	return config
@@ -75,12 +78,13 @@ func main() {
 		exit(fmt.Sprintf("Cannot initialize the client API:\n %v\n", err))
 	}
 
-	if *Zone == "" {
-		exit(fmt.Sprint("-z is required: see `dns help`\n"))
+	zone := *Zone
+	if zone == "" {
+		zone = config.Zone
 	}
 
 	if *Command == "show" {
-		records, err := ovhClient.ListFullARecords(*Zone)
+		records, err := ovhClient.ListFullARecords(zone)
 		b, err := json.Marshal(records)
 		if err != nil {
 			exit(fmt.Sprintf("Error on show: %v\n", err))
@@ -89,15 +93,14 @@ func main() {
 		return
 	}
 
-	stateFile := "dns.state"
-	state, err := ovhClient.LoadState(stateFile)
+	stateFile, err := ovhClient.LoadState(*StateFile)
 	if err != nil {
 		exit(fmt.Sprintf("Cannot load the state file: %s\n %v\n", stateFile, err))
 	}
 
 	if *Command == "plan" {
-		records, err := ovhClient.ListFullARecords(*Zone)
-		newState := ovhClient.Plan(state, records)
+		records, err := ovhClient.ListFullARecords(zone)
+		newState := ovhClient.Plan(stateFile, records)
 
 		b, err := json.Marshal(newState)
 		if err != nil {
@@ -108,8 +111,8 @@ func main() {
 	}
 
 	if *Command == "apply" {
-		records, err := ovhClient.ListFullARecords(*Zone)
-		modifications, err := ovhClient.Apply(*Zone, state, records)
+		records, err := ovhClient.ListFullARecords(zone)
+		modifications, err := ovhClient.Apply(zone, stateFile, records)
 		if err != nil {
 			exit(fmt.Sprintf("Error on apply: %s\n %v\n", stateFile, err))
 		}
@@ -133,7 +136,7 @@ func main() {
 			exit(fmt.Sprint("-id is required for command `delete`: see `dns help`\n"))
 		}
 
-		_, err := ovhClient.DeleteRecordByID(*Zone, *ID)
+		_, err := ovhClient.DeleteRecordByID(zone, *ID)
 		if err != nil {
 			exit(fmt.Sprintf("Error on delete: %v\n", err))
 		}

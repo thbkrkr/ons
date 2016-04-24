@@ -2,12 +2,11 @@ package dns
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
 
-	"github.com/yadutaf/go-ovh"
+	"github.com/ovh/go-ovh/ovh"
 )
 
 // OvhClient is a wrapper of an OVH API Client
@@ -17,6 +16,7 @@ type OvhClient struct {
 
 // Config for the OVH client
 type Config struct {
+	Zone              string `json:"zone"`
 	Endpoint          string `json:"endpoint"`
 	ApplicationKey    string `json:"ak"`
 	ApplicationSecret string `json:"as"`
@@ -27,15 +27,15 @@ type RecordState struct {
 	Target    string `json:"target"`
 	SubDomain string `json:"subDomain"`
 	State     string `json:"state,omitempty"`
-	//ID        int64  `json:"id,omitempty"`
+	ID        int64  `json:"id,omitempty"`
 }
 
 func (c *OvhClient) LoadState(stateFilename string) ([]*RecordState, error) {
 	stateFile, err := os.Open(stateFilename)
-	defer stateFile.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer stateFile.Close()
 
 	var state []*RecordState
 	jsonParser := json.NewDecoder(stateFile)
@@ -58,6 +58,7 @@ func (c *OvhClient) Plan(recordStates []*RecordState, records []*Record) []*Reco
 
 func (c *OvhClient) Apply(zone string, recordStates []*RecordState, records []*Record) ([]*RecordState, error) {
 	var modifications []*RecordState
+
 	for _, recordState := range recordStates {
 		_, state := c.GetState(recordState, records)
 		if state == "to_add" {
@@ -70,6 +71,7 @@ func (c *OvhClient) Apply(zone string, recordStates []*RecordState, records []*R
 			modifications = append(modifications, recordState)
 		}
 	}
+	c.ApplyZoneModifications(zone)
 	return modifications, nil
 }
 
@@ -82,14 +84,18 @@ func (c *OvhClient) GetState(recordState *RecordState, records []*Record) (int64
 	return 0, "to_add"
 }
 
-func (c *OvhClient) ListRecords(zone string, fieldType string) ([]int64, error) {
-	resp, err := c.Client.Call("GET", fmt.Sprintf("/domain/zone/%s/record?fieldType=%s", zone, fieldType), nil, true)
+func (c *OvhClient) ApplyZoneModifications(zone string) error {
+	err := c.Client.Post(fmt.Sprintf("/domain/zone/%s/refresh", zone), nil, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	return nil
+}
 
+func (c *OvhClient) ListRecords(zone string, fieldType string) ([]int64, error) {
 	var records []int64
-	err = processResponseEntity(resp, &records, 200)
+
+	err := c.Client.Get(fmt.Sprintf("/domain/zone/%s/record?fieldType=%s", zone, fieldType), &records)
 	if err != nil {
 		return nil, err
 	}
@@ -138,17 +144,14 @@ func getRecordByID(id int64, records []*Record) (*Record, error) {
 			return record, nil
 		}
 	}
+
 	return nil, fmt.Errorf("No record found for id: %d", id)
 }
 
 func (c *OvhClient) GetRecord(zone string, id int64) (*Record, error) {
-	resp, err := c.Client.Call("GET", fmt.Sprintf("/domain/zone/%s/record/%d", zone, id), nil, true)
-	if err != nil {
-		return nil, err
-	}
-
 	var record = &Record{}
-	err = processResponseEntity(resp, record, 200)
+
+	err := c.Client.Get(fmt.Sprintf("/domain/zone/%s/record/%d", zone, id), record)
 	if err != nil {
 		return nil, err
 	}
@@ -157,18 +160,10 @@ func (c *OvhClient) GetRecord(zone string, id int64) (*Record, error) {
 }
 
 func (c *OvhClient) GetRecordIDBySubDomain(zone string, subDomain string) (*int64, error) {
-	resp, err := c.Client.Call("GET", fmt.Sprintf("/domain/zone/%s/record/?subDomain=%s", zone, subDomain), nil, true)
-
-	if err != nil {
-		return nil, err
-	}
-
 	var records []int64
-	err = processResponseEntity(resp, &records, 200)
+
+	err := c.Client.Get(fmt.Sprintf("/domain/zone/%s/record/?subDomain=%s", zone, subDomain), records)
 	if err != nil {
-		return nil, err
-	}
-	if len(records) != 1 {
 		return nil, err
 	}
 
@@ -183,14 +178,10 @@ type AddRecord struct {
 }
 
 func (c *OvhClient) AddRecord(zone string, subDomain string, target string) (*Record, error) {
-	newRecord := &AddRecord{FieldType: "A", SubDomain: subDomain, Target: target}
-	resp, err := c.Client.Call("POST", fmt.Sprintf("/domain/zone/%s/record", zone), newRecord, true)
-	if err != nil {
-		return nil, err
-	}
-
 	var record = &Record{}
-	err = processResponseEntity(resp, record, 200)
+
+	newRecord := &AddRecord{FieldType: "A", SubDomain: subDomain, Target: target}
+	err := c.Client.Post(fmt.Sprintf("/domain/zone/%s/record", zone), newRecord, record)
 	if err != nil {
 		return nil, err
 	}
@@ -199,35 +190,12 @@ func (c *OvhClient) AddRecord(zone string, subDomain string, target string) (*Re
 }
 
 func (c *OvhClient) DeleteRecordByID(zone string, id int64) (bool, error) {
-	resp, err := c.Client.Call("DELETE", fmt.Sprintf("/domain/zone/%s/record/%d", zone, id), nil, true)
-	if err != nil {
-		return false, err
-	}
-
 	var record = &Record{}
-	err = processResponseEntity(resp, record, 200)
+
+	err := c.Client.Delete(fmt.Sprintf("/domain/zone/%s/record/%d", zone, id), record)
 	if err != nil {
 		return false, err
 	}
 
 	return true, nil
-}
-
-//
-
-func processResponseEntity(r *ovh.APIResponse, entity interface{}, expectedStatus int) error {
-	if err := processResponse(r, expectedStatus); err != nil {
-		return err
-	}
-	if err := json.Unmarshal(r.Body, entity); err != nil {
-		return err
-	}
-	return nil
-}
-
-func processResponse(r *ovh.APIResponse, expectedStatus int) error {
-	if r.StatusCode != expectedStatus {
-		return errors.New("response status of " + r.Status)
-	}
-	return nil
 }

@@ -3,11 +3,11 @@ deps:
 
 build:
 	docker run --rm \
-		-v $$(pwd):/dnsovh \
+		-v $$(pwd):/go/src/github.com/thbkrkr/go-ovh-dns \
 		-e GOBIN=/go/bin/ \
 		-e CGO_ENABLED=0 \
-		-e GOPATH=/dnsovh:/dnsovh/vendor \
-		-w /dnsovh \
+		-e GOPATH=/go \
+		-w /go/src/github.com/thbkrkr/go-ovh-dns \
 		golang:1.6.0 \
 		go build
 
