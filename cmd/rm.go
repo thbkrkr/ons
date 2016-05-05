@@ -4,7 +4,7 @@ import "github.com/spf13/cobra"
 
 var rmCmd = &cobra.Command{
 	Use:   "rm",
-	Short: "Remove records matching a subDomain",
+	Short: "Plan to remove records matching a sub domain",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		require("rm", 1, 1, args)

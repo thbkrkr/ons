@@ -14,8 +14,8 @@ func init() {
 
 var addCmd = &cobra.Command{
 	Use:   "add [subdomain] [ip]",
-	Short: "Add a record",
-	Long:  "Add a DNS zone record given a sub domain and an IP. If the IP is not set DOCKER_MACHINE_NAME is used",
+	Short: "Plan to add a record",
+	Long:  "Plan to add a DNS zone record given a sub domain and an IP. If the IP is not set DOCKER_MACHINE_NAME is used and the IP is resolved using docker machine",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		require("add", 1, 2, args)
