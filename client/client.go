@@ -116,6 +116,7 @@ func (c *OnsClient) Rm(zone string, subDomain string) error {
 func (c *OnsClient) Plan(zone string) ([]Record, []Record, error) {
 	var toAdd []Record
 	var toRm []Record
+	var state []Record
 
 	dns, err := c.ListARecords(zone)
 	if err != nil {
@@ -124,51 +125,61 @@ func (c *OnsClient) Plan(zone string) ([]Record, []Record, error) {
 
 	touchState := false
 
-	// Plan to addd record if it exists in the config
+	// Plan to add record if it exists in the config
 	for _, r := range c.config.records {
 
+		isInDNS := r.ExistsInBySubDomainAndTarget(dns)
+
 		// and not in the dns zone
-		if !r.ExistsInBySubDomainAndTarget(dns) {
-
+		if !isInDNS {
 			toAdd = append(toAdd, r)
+			continue
+		}
 
-		} else
-		// and in the dns zone but not in the state
-		if !r.ExistsInBySubDomainAndTarget(c.state.records) &&
-			r.ExistsInBySubDomainAndTarget(dns) {
+		isInState := r.ExistsInBySubDomainAndTarget(c.state.records)
 
+		// else if it's in the dns zone but not in the state
+		// refresh state
+		if isInDNS && !isInState {
 			record := r.GetBySubDomainAndTarget(dns)
-			c.state.records = append(c.state.records, *record)
+			state = append(state, *record)
 			touchState = true
 		}
 	}
 
-	// Remove record from the state
-	for i, r := range c.state.records {
+	// Plan to remove records if it exists from the state
+	for _, r := range c.state.records {
 
-		// if not in the DNS zone
+		// if not in the DNS zone, the DNS record might be
+		// removed from the DNS without ONS, plans to delete it
 		record := r.GetBySubDomainAndTarget(dns)
-		if record == nil {
-			c.state.records = append(c.state.records[:i], c.state.records[i+1:]...)
-			touchState = true
+		isInDNS := record != nil
 
-		} else
+		if !isInDNS {
+			r.ID = 0
+			toRm = append(toRm, r)
+			state = append(state, r)
+			touchState = true
+			continue
+		}
+
+		state = append(state, *record)
+
 		// Refresh record if ID is absent
 		if r.ID == 0 {
-			c.state.records[i] = *record
 			touchState = true
 		}
 
 		// Plan to remove record if it exists in the state
 		// and not in the config but in the dns zone
-		if !r.ExistsInBySubDomainAndTarget(c.config.records) &&
-			r.ExistsInBySubDomainAndTarget(dns) {
-
+		isInConfig := r.ExistsInBySubDomainAndTarget(c.config.records)
+		if !isInConfig {
 			toRm = append(toRm, r)
 		}
 	}
 
 	if touchState {
+		c.state.records = state
 		err = c.state.save()
 		if err != nil {
 			return nil, nil, err
@@ -206,9 +217,12 @@ func (c *OnsClient) Apply(zone string) (int, int, error) {
 	}
 
 	for _, r := range toRm {
-		_, err := c.DeleteRecordByID(zone, r.ID)
-		if err != nil {
-			return 0, 0, err
+
+		if r.ID != 0 {
+			_, err := c.DeleteRecordByID(zone, r.ID)
+			if err != nil {
+				return 0, 0, err
+			}
 		}
 
 		for i, sr := range c.state.records {

@@ -37,7 +37,11 @@ func plan() {
 		printAddition("+ dns record: %-16s %s.%s\n", r.Target, r.SubDomain, zone)
 	}
 	for _, r := range toRm {
-		printRemoval("- dns record: %-16s %s.%s\n", r.Target, r.SubDomain, zone)
+		comment := ""
+		if r.ID == 0 {
+			comment = "(already removed from the DNS zone)"
+		}
+		printRemoval("- dns record: %-16s %s.%s %s\n", r.Target, r.SubDomain, zone, comment)
 	}
 
 	if len(toAdd)+len(toRm) > 0 {
