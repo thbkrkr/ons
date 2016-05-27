@@ -13,25 +13,29 @@ func (c *OnsClient) ListARecords(zone string) (Records, error) {
 		return nil, err
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(records))
+	nbRecords := len(records)
 
-	var fullRecords Records
-	for _, recordID := range records {
-		go func(recordID int64) {
+	var wg sync.WaitGroup
+	wg.Add(nbRecords)
+
+	fullRecords := make([]Record, len(records))
+	for index, recordID := range records {
+		go func(i int, id int64) {
 			defer wg.Done()
-			record, err := c.GetRecordByID(zone, recordID)
+			record, err := c.GetRecordByID(zone, id)
 			if err != nil {
 				return
 			}
-			fullRecords = append(fullRecords, *record)
-		}(recordID)
+			fullRecords[i] = *record
+		}(index, recordID)
 	}
+
 	wg.Wait()
 
-	sort.Sort(fullRecords)
+	sortedFullRecords := Records(fullRecords)
+	sort.Sort(sortedFullRecords)
 
-	return fullRecords, nil
+	return sortedFullRecords, nil
 }
 
 // ListRecordsByType lists all DNS zone records given a type (A, MX, SRV, NS, ...)
