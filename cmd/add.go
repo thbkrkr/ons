@@ -34,16 +34,18 @@ var addCmd = &cobra.Command{
 func argTarget(args []string) string {
 	target := ""
 
-	machine := os.Getenv("DOCKER_MACHINE_NAME")
-	if machine != "" {
-		output, err := exec.Command("docker-machine", "ip", machine).Output()
-		if err != nil {
-			exit("Fail to get ip from `"+machine+"` using docker-machine", nil)
-		}
-		target = strings.Replace(string(output), "\n", "", -1)
+	// Get the IP argument
+	if len(args) == 2 {
+		target = args[1]
 	} else {
-		if len(args) == 2 {
-			target = args[1]
+		// Or get the IP from the current docker machine
+		machine := os.Getenv("DOCKER_MACHINE_NAME")
+		if machine != "" {
+			output, err := exec.Command("docker-machine", "ip", machine).Output()
+			if err != nil {
+				exit("Fail to get ip from `"+machine+"` using docker-machine", nil)
+			}
+			target = strings.Replace(string(output), "\n", "", -1)
 		}
 	}
 
