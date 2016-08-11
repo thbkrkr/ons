@@ -88,21 +88,32 @@ func (c *OnsClient) Add(zone string, subDomain string, target string) error {
 	return nil
 }
 
-// Rm removes records from the config given a sub domain and plans the DNS config
-func (c *OnsClient) Rm(zone string, subDomain string) error {
+// Rm removes records from the config given a sub domain and plans the DNS config.
+// If the target is empty all records that match the sub domain will be removed.
+func (c *OnsClient) Rm(zone string, subDomain string, target string) error {
+	newConfig := &DNSConfig{}
 	record := Record{Zone: zone, SubDomain: subDomain}
 
 	if !record.ExistsInBySubDomain(c.state.records) && !record.ExistsInBySubDomain(c.config.records) {
 		return fmt.Errorf("Record `%s.%s` not managed.", record.SubDomain, record.Zone)
 	}
 
+	// Generate the new config without the record to remove
 	for i := len(c.config.records) - 1; i >= 0; i-- {
 		r := c.config.records[i]
-		if r.Zone == zone && r.SubDomain == subDomain {
-			c.config.records = append(c.config.records[:i],
-				c.config.records[i+1:]...)
+		if target == "" {
+			if r.Zone != zone || r.SubDomain != subDomain {
+				continue
+			}
+		} else {
+			if r.Zone == zone && r.SubDomain == subDomain && r.Target == target {
+				continue
+			}
 		}
+		newConfig = append(r)
 	}
+
+	c.config.records = newConfig
 
 	err := c.config.save()
 	if err != nil {
