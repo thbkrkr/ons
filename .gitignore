@@ -1,4 +1,3 @@
-dns
-vendor/*
+dns*
 ons
 dev.sh
