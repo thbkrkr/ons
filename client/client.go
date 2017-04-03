@@ -91,8 +91,8 @@ func (c *OnsClient) Add(zone string, subDomain string, target string) error {
 // Rm removes records from the config given a sub domain and plans the DNS config.
 // If the target is empty all records that match the sub domain will be removed.
 func (c *OnsClient) Rm(zone string, subDomain string, target string) error {
-	newConfig := &DNSConfig{}
 	record := Record{Zone: zone, SubDomain: subDomain}
+	newRecords := []Record{}
 
 	if !record.ExistsInBySubDomain(c.state.records) && !record.ExistsInBySubDomain(c.config.records) {
 		return fmt.Errorf("Record `%s.%s` not managed.", record.SubDomain, record.Zone)
@@ -102,7 +102,7 @@ func (c *OnsClient) Rm(zone string, subDomain string, target string) error {
 	for i := len(c.config.records) - 1; i >= 0; i-- {
 		r := c.config.records[i]
 		if target == "" {
-			if r.Zone != zone || r.SubDomain != subDomain {
+			if r.Zone == zone && r.SubDomain == subDomain {
 				continue
 			}
 		} else {
@@ -110,10 +110,10 @@ func (c *OnsClient) Rm(zone string, subDomain string, target string) error {
 				continue
 			}
 		}
-		newConfig = append(r)
+		newRecords = append(newRecords, r)
 	}
 
-	c.config.records = newConfig
+	c.config.records = newRecords
 
 	err := c.config.save()
 	if err != nil {
@@ -237,7 +237,7 @@ func (c *OnsClient) Apply(zone string) (int, int, error) {
 		}
 
 		for i, sr := range c.state.records {
-			if sr.Zone == r.Zone && sr.SubDomain == r.SubDomain {
+			if sr.Zone == r.Zone && sr.SubDomain == r.SubDomain && sr.Target == r.Target {
 				c.state.records = append(c.state.records[:i], c.state.records[i+1:]...)
 			}
 		}
